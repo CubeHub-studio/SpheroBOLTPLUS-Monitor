@@ -1,15 +1,26 @@
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Callable
+
 from bleak import BleakClient
 
-from .bolt_protocol import CHAR_TX_RX_1, CHAR_TX_RX_2, build_led_packet
+from .bolt_protocol import (
+    CHAR_TX_RX_1,
+    CHAR_TX_RX_2,
+    build_display_packet,
+)
 
 NotificationCallback = Callable[[str, bytes], None]
 
+
 class BoltBLE:
-    def __init__(self, address: str, on_notification: NotificationCallback | None = None):
+    """BLE transport for the Sphero BOLT+ built-in display project."""
+
+    def __init__(
+        self,
+        address: str,
+        on_notification: NotificationCallback | None = None,
+    ):
         self.address = address
         self.on_notification = on_notification
         self.client: BleakClient | None = None
@@ -26,7 +37,7 @@ class BoltBLE:
         await self.client.start_notify(CHAR_TX_RX_2, self._notify)
 
     async def disconnect(self) -> None:
-        if not self.client:
+        if self.client is None:
             return
 
         for uuid in (CHAR_TX_RX_1, CHAR_TX_RX_2):
@@ -38,11 +49,18 @@ class BoltBLE:
         if self.client.is_connected:
             await self.client.disconnect()
 
-    async def send_matrix(self, matrix) -> None:
-        if not self.client or not self.client.is_connected:
+        self.client = None
+
+    async def send_display_frame(self, frame) -> None:
+        """Send a display frame once the verified LCD command is available."""
+
+        if self.client is None or not self.client.is_connected:
             raise RuntimeError("BOLT+ is not connected")
 
-        packet = build_led_packet(matrix)
+        packet = build_display_packet(frame)
 
-        # Protocol selection will be implemented once the packet format is verified.
-        await self.client.write_gatt_char(CHAR_TX_RX_1, packet, response=False)
+        await self.client.write_gatt_char(
+            CHAR_TX_RX_1,
+            packet,
+            response=False,
+        )
