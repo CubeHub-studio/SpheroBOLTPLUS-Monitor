@@ -1,31 +1,29 @@
 # Sphero BOLT+ Monitor
 
-Turn a Sphero BOLT+ into a tiny Windows virtual display.
+Turn the **actual BOLT+ display** into a Windows virtual display.
 
 ## Project status
 
-This repository contains the complete project workspace:
-
+This repository contains:
 - BLE discovery and GATT inspection tools
 - BOLT+ BLE connection/notification logger
-- 8x8 framebuffer and image-to-LED conversion
-- Display bridge process
-- Protocol research notes and safe packet-capture workflow
-- Windows IddCx virtual-monitor driver scaffold
-- Build/install/run helper scripts
+- display framebuffer pipeline
+- BOLT+ display protocol adapter
+- Windows IddCx virtual-display driver scaffold
+- build/install/run helpers
 
-The BOLT+ exposes a custom BLE service:
+The BOLT+ exposes this custom BLE service:
 
 `00010001-574F-4F20-5370-6865726F2121`
 
-with two custom characteristics:
+with these two characteristics:
 
 - `00010002-574F-4F20-5370-6865726F2121`
 - `00010003-574F-4F20-5370-6865726F2121`
 
 Both were observed to support write and notify operations.
 
-**Important:** the exact BOLT+ application protocol is intentionally not guessed. The current tools can discover, connect, subscribe, and capture traffic without sending arbitrary command packets. Protocol commands should only be added after they are verified.
+**Important:** the exact BOLT+ application protocol is not guessed. The current tools can discover, connect, subscribe, and capture traffic without sending undocumented commands.
 
 ## Architecture
 
@@ -35,88 +33,72 @@ Windows desktop
       v
 IddCx virtual display driver
       |
-      | desktop swap-chain frames
+      | desktop frame
       v
-Sphero display bridge
+Display bridge
       |
       | BLE
       v
 Sphero BOLT+
       |
       v
-8x8 LED matrix
+BOLT+ built-in display
 ```
 
-The Windows side is based on the Windows Indirect Display Driver model. Microsoft documents IddCx as the user-mode model for monitors that are not connected to a traditional GPU output.
+The project treats the BOLT+'s built-in display as the physical display endpoint. It does not create a separate software LED matrix abstraction.
 
 ## Requirements
 
 - Windows 11
-- Python 3.11+ (Python 3.14 is supported by the bridge code)
+- Python 3.11+
 - Bluetooth LE adapter
 - Sphero BOLT+
-- Visual Studio + Windows Driver Kit for the driver portion
+- Visual Studio + Windows Driver Kit for the driver
 
-Install Python dependencies:
+Install dependencies:
 
 ```powershell
-py -m pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-If `py` is unavailable:
+Set the address at runtime:
 
-```C:\Python314\python.exe -m pip install -r requirements.txt
+```powershell
+$env:BOLT_ADDRESS="XX:XX:XX:XX:XX:XX"
 ```
 
-## Tools
-
-Scan for nearby BLE devices:
+Scan:
 
 ```powershell
 python tools\bolt_scan.py
 ```
 
-Inspect the BOLT+ GATT table:
+Inspect GATT:
 
 ```powershell
 python tools\bolt_gatt.py
 ```
 
-Capture notifications without writing commands:
+Capture notifications:
 
 ```powershell
 python tools\bolt_logger.py
 ```
 
-Run the software framebuffer bridge:
+Run the bridge:
 
 ```powershell
 python bridge\display_bridge.py
 ```
 
-## BOLT+ address
+## Windows display position
 
-Do not hard-code a Bluetooth address in source control. Set it at runtime:
-
-```powershell
-$env:BOLT_ADDRESS="DE:B4:FA:F9:56:5F"
-python bridge\display_bridge.py
-```
-
-Replace the address with the one reported by your scanner.
-
-## Virtual monitor
-
-The driver directory is a WDK/IddCx implementation scaffold. It is deliberately kept separate from the Python BLE bridge because Windows supplies desktop frames to the indirect display driver, while Bluetooth communication belongs in the user-mode bridge.
-
-After the driver is functional, Windows should expose a display endpoint named **Sphero BOLT+ Monitor**. The display's physical position can then be configured in Windows Display Settings so it sits to the left of the existing monitor.
+Once the IddCx driver is functional, Windows will see **Sphero BOLT+ Monitor** as another display. Windows Display Settings can place that display to the **left** of the existing physical monitor.
 
 ## Safety
 
-The BLE logger only subscribes to notifications. It does not send undocumented commands to the robot.
+The BLE logger only subscribes to notifications. It does not send undocumented commands.
 
-The bridge also refuses to send a BOLT+ LED packet until a verified protocol implementation is supplied.
+The display bridge refuses to transmit display data until the verified BOLT+ display protocol has been implemented.
 
-## License
-
-MIT. See LICENSE.
+See `protocol/README.md` and `driver/README.md`.
