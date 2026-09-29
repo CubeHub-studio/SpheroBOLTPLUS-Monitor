@@ -5,26 +5,21 @@ import os
 from dataclasses import dataclass
 
 from .bolt_ble import BoltBLE
-from .bolt_protocol import RGB, resize_to_matrix
+from .bolt_protocol import RGB, prepare_display_frame
 
 @dataclass
-class Frame:
+class DisplayFrame:
     pixels: list[list[RGB]]
 
-def make_test_frame() -> Frame:
+def make_test_frame() -> DisplayFrame:
     pixels: list[list[RGB]] = []
     for y in range(8):
         row = []
         for x in range(8):
-            row.append(
-                RGB(
-                    r=(x * 32) & 255,
-                    g=(y * 32) & 255,
-                    b=((x + y) * 16) & 255,
-                )
-            )
+            row.append(RGB((x * 32) & 255, (y * 32) & 255,
+                           ((x + y) * 16) & 255))
         pixels.append(row)
-    return Frame(pixels)
+    return DisplayFrame(pixels)
 
 async def main() -> None:
     address = os.environ.get("BOLT_ADDRESS")
@@ -32,8 +27,9 @@ async def main() -> None:
         raise SystemExit("Set BOLT_ADDRESS first.")
 
     print("Sphero BOLT+ display bridge")
-    print("BLE connection and framebuffer pipeline are ready.")
-    print("LED transmission remains disabled until the protocol is verified.")
+    print("Using the BOLT+'s built-in display as the output endpoint.")
+    print("BLE connection and display-frame pipeline are ready.")
+    print("Display transmission remains disabled until the protocol is verified.")
 
     bolt = BoltBLE(address)
 
@@ -42,10 +38,10 @@ async def main() -> None:
         print("Connected and subscribed to BOLT+ notifications.")
 
         frame = make_test_frame()
-        matrix = resize_to_matrix(frame.pixels)
-        print(f"Prepared {len(matrix)}x{len(matrix[0])} RGB framebuffer.")
+        display_frame = prepare_display_frame(frame.pixels)
+        print(f"Prepared BOLT+ display frame: "
+              f"{len(display_frame[0])}x{len(display_frame)} RGB pixels.")
 
-        # Deliberately do not call send_matrix yet.
         await asyncio.Event().wait()
     finally:
         await bolt.disconnect()
